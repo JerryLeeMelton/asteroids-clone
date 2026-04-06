@@ -1,16 +1,10 @@
-import logo from "./logo.svg"
 import "./App.css"
-import { Stage, Layer, Circle } from "react-konva"
-import Ship from "./components/Ship"
+import AsteroidsGame from "./components/AsteroidsGame"
 
 function App() {
   return (
     <div className="App">
-      <Stage width={window.innerWidth} height={window.innerHeight}>
-        <Layer>
-          <Ship />
-        </Layer>
-      </Stage>
+      <AsteroidsGame width={800} height={600} />
     </div>
   )
 }
