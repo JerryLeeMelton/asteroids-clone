@@ -40,10 +40,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
     }
 
-    // Sanitize name: trim, limit length, strip control characters
-    const sanitizedName = name.replace(/[^\x20-\x7E]/g, '').trim().slice(0, 10);
-    if (sanitizedName.length === 0) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    // Sanitize initials: letters only, exactly 3 characters
+    const sanitizedName = name.replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase();
+    if (sanitizedName.length !== 3) {
+      return NextResponse.json({ error: 'Initials must be exactly 3 letters' }, { status: 400 });
     }
 
     // Validate score is a reasonable positive integer

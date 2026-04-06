@@ -333,34 +333,49 @@ function drawNameEntry(ctx: CanvasRenderingContext2D, state: GameState): void {
 
   ctx.font = `16px ${FONT_FAMILY}`;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.fillText('ENTER YOUR NAME', width / 2, height / 2 - 10);
+  ctx.fillText('ENTER YOUR INITIALS', width / 2, height / 2 - 10);
 
-  // Name entry field with cursor
-  const name = state.enteredName;
-  const cursor = Math.floor(Date.now() / 400) % 2 === 0 ? '_' : ' ';
-  const displayName = name + (name.length < 10 ? cursor : '');
-
-  ctx.fillStyle = TEXT_COLOR;
-  ctx.font = `bold 32px ${FONT_FAMILY}`;
-  ctx.fillText(displayName, width / 2, height / 2 + 35);
-
-  // Underline slots
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 1;
-  const slotWidth = 20;
-  const totalWidth = slotWidth * 10;
+  // 3-letter initial slots
+  const slotWidth = 40;
+  const slotGap = 12;
+  const totalWidth = slotWidth * 3 + slotGap * 2;
   const startX = width / 2 - totalWidth / 2;
-  for (let i = 0; i < 10; i++) {
-    const sx = startX + i * slotWidth;
+  const slotY = height / 2 + 35;
+
+  for (let i = 0; i < 3; i++) {
+    const sx = startX + i * (slotWidth + slotGap);
+    const letter = state.enteredName[i];
+
+    // Underline
+    ctx.strokeStyle = i === state.enteredName.length
+      ? TEXT_COLOR
+      : 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(sx + 2, height / 2 + 42);
-    ctx.lineTo(sx + slotWidth - 2, height / 2 + 42);
+    ctx.moveTo(sx, slotY + 8);
+    ctx.lineTo(sx + slotWidth, slotY + 8);
     ctx.stroke();
+
+    if (letter) {
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.font = `bold 36px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(letter, sx + slotWidth / 2, slotY);
+    } else if (i === state.enteredName.length) {
+      // Blinking cursor on current slot
+      if (Math.floor(Date.now() / 350) % 2 === 0) {
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = `bold 36px ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.fillText('_', sx + slotWidth / 2, slotY);
+      }
+    }
   }
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
   ctx.font = `14px ${FONT_FAMILY}`;
-  ctx.fillText('PRESS ENTER TO SUBMIT', width / 2, height / 2 + 80);
+  ctx.textAlign = 'center';
+  ctx.fillText('BACKSPACE TO CORRECT', width / 2, height / 2 + 80);
 }
 
 function drawHighScoresScreen(ctx: CanvasRenderingContext2D, state: GameState, highScores: HighScore[]): void {

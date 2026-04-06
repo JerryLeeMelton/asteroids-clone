@@ -128,7 +128,7 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
 
         case GamePhase.EnteringName:
           e.preventDefault();
-          if (e.key === 'Enter' && state.enteredName.length > 0 && !submittingRef.current) {
+          if (e.key === 'Enter' && state.enteredName.length === 3 && !submittingRef.current) {
             // Submit the score
             submittingRef.current = true;
             submitHighScore(scoresApiUrl, state.enteredName, state.score).then((result) => {
@@ -146,10 +146,24 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
             state.phase = GamePhase.HighScores;
           } else if (
             e.key.length === 1 &&
-            state.enteredName.length < 10 &&
-            /^[a-zA-Z0-9 .]$/.test(e.key)
+            state.enteredName.length < 3 &&
+            /^[a-zA-Z]$/.test(e.key)
           ) {
             state.enteredName += e.key.toUpperCase();
+            // Auto-submit when 3rd letter is entered
+            if (state.enteredName.length === 3 && !submittingRef.current) {
+              submittingRef.current = true;
+              const name = state.enteredName;
+              const score = state.score;
+              submitHighScore(scoresApiUrl, name, score).then((result) => {
+                submittingRef.current = false;
+                if (result) {
+                  highScoresRef.current = result.scores;
+                  state.newHighScoreRank = result.rank;
+                }
+                state.phase = GamePhase.HighScores;
+              });
+            }
           }
           break;
 
