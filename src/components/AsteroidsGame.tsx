@@ -1,13 +1,15 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { createGameState, createKeyState, updateGame, resetGame } from '../game/engine';
-import { render } from '../game/renderer';
-import { GameState, KeyState } from '../game/types';
+import { render, RenderContext } from '../game/renderer';
+import { GameState, KeyState, GamePhase } from '../game/types';
+import { HighScore, fetchHighScores, submitHighScore, isHighScore } from '../game/scores';
 
 interface AsteroidsGameProps {
   width?: number;
   height?: number;
   className?: string;
   style?: React.CSSProperties;
+  scoresApiUrl?: string;
 }
 
 const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
@@ -15,6 +17,7 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
   height = 600,
   className,
   style,
+  scoresApiUrl = '/api/asteroids/scores',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameStateRef = useRef<GameState | null>(null);
@@ -23,6 +26,15 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
   const lastTimeRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<boolean>(false);
+  const highScoresRef = useRef<HighScore[]>([]);
+  const submittingRef = useRef<boolean>(false);
+  const gameOverTimerRef = useRef<number>(0);
+
+  // Load high scores
+  const loadHighScores = useCallback(async () => {
+    const scores = await fetchHighScores(scoresApiUrl);
+    highScoresRef.current = scores;
+  }, [scoresApiUrl]);
 
   const gameLoop = useCallback((timestamp: number) => {
     const canvas = canvasRef.current;
@@ -30,12 +42,20 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     const state = gameStateRef.current;
     if (!canvas || !ctx || !state) return;
 
-    // Delta time in seconds, capped to prevent spiral of death
     const dt = Math.min((timestamp - lastTimeRef.current) / 1000, 0.05);
     lastTimeRef.current = timestamp;
 
+    // Track time in game over phase for a brief delay before accepting input
+    if (state.phase === GamePhase.GameOver) {
+      gameOverTimerRef.current += dt;
+    }
+
     updateGame(state, keyStateRef.current, dt);
-    render(ctx, state);
+
+    const renderCtx: RenderContext = {
+      highScores: highScoresRef.current,
+    };
+    render(ctx, state, renderCtx);
 
     rafRef.current = requestAnimationFrame(gameLoop);
   }, []);
@@ -44,17 +64,16 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Initialize game state
     gameStateRef.current = createGameState(width, height);
+    loadHighScores();
 
-    // Start game loop
     lastTimeRef.current = performance.now();
     rafRef.current = requestAnimationFrame(gameLoop);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
     };
-  }, [width, height, gameLoop]);
+  }, [width, height, gameLoop, loadHighScores]);
 
   // Keyboard handlers
   useEffect(() => {
@@ -73,24 +92,73 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
       const state = gameStateRef.current;
       if (!state) return;
 
-      // Prevent scrolling on arrow keys / space
+      // Prevent scrolling
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
         e.preventDefault();
       }
 
-      // Start / restart game
-      if (e.key === 'Enter') {
-        if (!state.started || state.gameOver) {
-          resetGame(state);
-        }
-        return;
-      }
+      // Phase-specific input handling
+      switch (state.phase) {
+        case GamePhase.Title:
+          if (e.key === 'Enter') {
+            resetGame(state);
+          }
+          break;
 
-      // Map key code for shift (e.key is "Shift", e.code is "ShiftLeft"/"ShiftRight")
-      const mappedKey = e.code.startsWith('Shift') ? e.code : e.key;
-      const action = keyMap[mappedKey];
-      if (action) {
-        keyStateRef.current[action] = true;
+        case GamePhase.Playing: {
+          const mappedKey = e.code.startsWith('Shift') ? e.code : e.key;
+          const action = keyMap[mappedKey];
+          if (action) {
+            keyStateRef.current[action] = true;
+          }
+          break;
+        }
+
+        case GamePhase.GameOver:
+          if (e.key === 'Enter' && gameOverTimerRef.current > 1.0) {
+            gameOverTimerRef.current = 0;
+            if (isHighScore(highScoresRef.current, state.score)) {
+              state.phase = GamePhase.EnteringName;
+              state.enteredName = '';
+            } else {
+              state.phase = GamePhase.HighScores;
+            }
+          }
+          break;
+
+        case GamePhase.EnteringName:
+          e.preventDefault();
+          if (e.key === 'Enter' && state.enteredName.length > 0 && !submittingRef.current) {
+            // Submit the score
+            submittingRef.current = true;
+            submitHighScore(scoresApiUrl, state.enteredName, state.score).then((result) => {
+              submittingRef.current = false;
+              if (result) {
+                highScoresRef.current = result.scores;
+                state.newHighScoreRank = result.rank;
+              }
+              state.phase = GamePhase.HighScores;
+            });
+          } else if (e.key === 'Backspace') {
+            state.enteredName = state.enteredName.slice(0, -1);
+          } else if (e.key === 'Escape') {
+            // Skip name entry
+            state.phase = GamePhase.HighScores;
+          } else if (
+            e.key.length === 1 &&
+            state.enteredName.length < 10 &&
+            /^[a-zA-Z0-9 .]$/.test(e.key)
+          ) {
+            state.enteredName += e.key.toUpperCase();
+          }
+          break;
+
+        case GamePhase.HighScores:
+          if (e.key === 'Enter') {
+            state.newHighScoreRank = null;
+            resetGame(state);
+          }
+          break;
       }
     };
 
@@ -109,9 +177,8 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [scoresApiUrl]);
 
-  // Focus management
   const handleContainerClick = useCallback(() => {
     focusedRef.current = true;
     containerRef.current?.focus();
@@ -119,7 +186,6 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
 
   const handleBlur = useCallback(() => {
     focusedRef.current = false;
-    // Reset all keys on blur so ship doesn't keep drifting
     const keys = keyStateRef.current;
     keys.left = false;
     keys.right = false;

@@ -1,5 +1,5 @@
 import {
-  GameState, KeyState, Ship, Asteroid,
+  GameState, KeyState, Ship, Asteroid, GamePhase,
   Vec2, AsteroidSize, SaucerSize,
   SHIP_ROTATION_SPEED, SHIP_THRUST, SHIP_DRAG, SHIP_MAX_SPEED, SHIP_RADIUS,
   SHIP_INVINCIBLE_TIME, SHIP_RESPAWN_TIME,
@@ -115,12 +115,15 @@ export function createGameState(width: number, height: number): GameState {
     level: 1,
     gameOver: false,
     started: false,
+    phase: GamePhase.Title,
     width,
     height,
     nextId: 1,
     extraLifeThreshold: EXTRA_LIFE_SCORE,
     levelClearTimer: 0,
     saucerSpawnTimer: rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max),
+    enteredName: '',
+    newHighScoreRank: null,
   };
 
   state.asteroids = spawnAsteroidsForLevel(1, width, height, state.nextId);
@@ -139,7 +142,7 @@ let shootCooldown = 0;
 // ---- Game Update ----
 
 export function updateGame(state: GameState, keys: KeyState, dt: number): void {
-  if (!state.started || state.gameOver) return;
+  if (state.phase !== GamePhase.Playing) return;
 
   const { ship, width, height } = state;
 
@@ -369,6 +372,7 @@ function destroyShip(state: GameState): void {
   state.lives--;
   if (state.lives <= 0) {
     state.gameOver = true;
+    state.phase = GamePhase.GameOver;
   } else {
     state.ship.respawnTimer = SHIP_RESPAWN_TIME;
   }
@@ -471,10 +475,13 @@ export function resetGame(state: GameState): void {
   state.level = 1;
   state.gameOver = false;
   state.started = true;
+  state.phase = GamePhase.Playing;
   state.nextId = 1;
   state.extraLifeThreshold = EXTRA_LIFE_SCORE;
   state.levelClearTimer = LEVEL_CLEAR_DELAY;
   state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
+  state.enteredName = '';
+  state.newHighScoreRank = null;
   shootCooldown = 0;
 
   state.asteroids = spawnAsteroidsForLevel(1, state.width, state.height, state.nextId);

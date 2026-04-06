@@ -67,6 +67,14 @@ export enum SaucerSize {
   Small = 1,
 }
 
+export enum GamePhase {
+  Title = 'title',
+  Playing = 'playing',
+  GameOver = 'gameOver',
+  EnteringName = 'enteringName',
+  HighScores = 'highScores',
+}
+
 export interface GameState {
   ship: Ship;
   asteroids: Asteroid[];
@@ -79,12 +87,16 @@ export interface GameState {
   level: number;
   gameOver: boolean;
   started: boolean;
+  phase: GamePhase;
   width: number;
   height: number;
   nextId: number;
   extraLifeThreshold: number;
   levelClearTimer: number;
   saucerSpawnTimer: number;
+  // High score entry
+  enteredName: string;
+  newHighScoreRank: number | null;
 }
 
 export interface KeyState {
