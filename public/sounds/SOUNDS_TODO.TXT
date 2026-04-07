@@ -1,0 +1,12 @@
+Create .mp3 sound effect files for the following and drop them into public/sounds:
+shoot.mp3, 
+thrust.mp3, 
+explodeShip.mp3, 
+explodeLarge.mp3, 
+explodeMedium.mp3, 
+explodeSmall.mp3, 
+saucerBig.mp3, 
+saucerSmall.mp3, 
+saucerShoot.mp3, 
+extraLife.mp3, 
+hyperspace.mp3
