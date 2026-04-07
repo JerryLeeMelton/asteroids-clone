@@ -3,6 +3,7 @@ import { createGameState, createKeyState, updateGame, resetGame } from '../game/
 import { render, RenderContext } from '../game/renderer';
 import { GameState, KeyState, GamePhase } from '../game/types';
 import { HighScore, fetchHighScores, submitHighScore, isHighScore } from '../game/scores';
+import { CRTFilter, CRTOptions } from '../game/crt';
 
 interface AsteroidsGameProps {
   width?: number;
@@ -10,6 +11,10 @@ interface AsteroidsGameProps {
   className?: string;
   style?: React.CSSProperties;
   scoresApiUrl?: string;
+  /** Enable CRT post-processing filter (default true) */
+  crtEnabled?: boolean;
+  /** Override CRT filter options */
+  crtOptions?: Partial<CRTOptions>;
 }
 
 const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
@@ -18,6 +23,8 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
   className,
   style,
   scoresApiUrl = '/api/asteroids/scores',
+  crtEnabled = true,
+  crtOptions,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameStateRef = useRef<GameState | null>(null);
@@ -29,6 +36,7 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
   const highScoresRef = useRef<HighScore[]>([]);
   const submittingRef = useRef<boolean>(false);
   const gameOverTimerRef = useRef<number>(0);
+  const crtFilterRef = useRef<CRTFilter | null>(null);
 
   // Load high scores
   const loadHighScores = useCallback(async () => {
@@ -38,14 +46,13 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
 
   const gameLoop = useCallback((timestamp: number) => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
+    const outputCtx = canvas?.getContext('2d');
     const state = gameStateRef.current;
-    if (!canvas || !ctx || !state) return;
+    if (!canvas || !outputCtx || !state) return;
 
     const dt = Math.min((timestamp - lastTimeRef.current) / 1000, 0.05);
     lastTimeRef.current = timestamp;
 
-    // Track time in game over phase for a brief delay before accepting input
     if (state.phase === GamePhase.GameOver) {
       gameOverTimerRef.current += dt;
     }
@@ -55,7 +62,16 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     const renderCtx: RenderContext = {
       highScores: highScoresRef.current,
     };
-    render(ctx, state, renderCtx);
+
+    const crt = crtFilterRef.current;
+    if (crt) {
+      // Render game to offscreen canvas, then apply CRT filter to visible canvas
+      const gameCtx = crt.getGameContext();
+      render(gameCtx, state, renderCtx);
+      crt.apply(outputCtx);
+    } else {
+      render(outputCtx, state, renderCtx);
+    }
 
     rafRef.current = requestAnimationFrame(gameLoop);
   }, []);
@@ -65,6 +81,7 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     if (!canvas) return;
 
     gameStateRef.current = createGameState(width, height);
+    crtFilterRef.current = crtEnabled ? new CRTFilter(width, height, crtOptions) : null;
     loadHighScores();
 
     lastTimeRef.current = performance.now();
@@ -73,7 +90,7 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     return () => {
       cancelAnimationFrame(rafRef.current);
     };
-  }, [width, height, gameLoop, loadHighScores]);
+  }, [width, height, gameLoop, loadHighScores, crtEnabled, crtOptions]);
 
   // Keyboard handlers
   useEffect(() => {
