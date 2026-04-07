@@ -67,6 +67,29 @@ export enum SaucerSize {
   Small = 1,
 }
 
+export enum GameEvent {
+  Shoot = 'shoot',
+  ThrustStart = 'thrustStart',
+  ThrustStop = 'thrustStop',
+  ExplodeShip = 'explodeShip',
+  ExplodeLarge = 'explodeLarge',
+  ExplodeMedium = 'explodeMedium',
+  ExplodeSmall = 'explodeSmall',
+  SaucerSpawn = 'saucerSpawn',
+  SaucerDestroyed = 'saucerDestroyed',
+  SaucerShoot = 'saucerShoot',
+  ExtraLife = 'extraLife',
+  Hyperspace = 'hyperspace',
+}
+
+export enum GamePhase {
+  Title = 'title',
+  Playing = 'playing',
+  GameOver = 'gameOver',
+  EnteringName = 'enteringName',
+  HighScores = 'highScores',
+}
+
 export interface GameState {
   ship: Ship;
   asteroids: Asteroid[];
@@ -79,12 +102,18 @@ export interface GameState {
   level: number;
   gameOver: boolean;
   started: boolean;
+  phase: GamePhase;
   width: number;
   height: number;
   nextId: number;
   extraLifeThreshold: number;
   levelClearTimer: number;
   saucerSpawnTimer: number;
+  // High score entry
+  enteredName: string;
+  newHighScoreRank: number | null;
+  // Audio event queue — drained by the component each frame
+  events: GameEvent[];
 }
 
 export interface KeyState {
