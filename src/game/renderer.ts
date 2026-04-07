@@ -273,11 +273,11 @@ function drawTitleScreen(ctx: CanvasRenderingContext2D, state: GameState, highSc
   ctx.textAlign = 'center';
 
   ctx.font = `bold 48px ${FONT_FAMILY}`;
-  ctx.fillText('ASTEROIDS', width / 2, height * 0.2);
+  ctx.fillText('REACTEROIDS', width / 2, height * 0.2);
 
   ctx.font = `16px ${FONT_FAMILY}`;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.fillText('ARROW KEYS TO MOVE  \u2022  SPACE TO SHOOT  \u2022  SHIFT FOR HYPERSPACE', width / 2, height * 0.2 + 45);
+  ctx.fillText('ARROWS TO MOVE  \u2022  SPACE TO SHOOT  \u2022  SHIFT FOR HYPERSPACE', width / 2, height * 0.2 + 45);
 
   // High scores on title screen
   if (highScores.length > 0) {
@@ -292,8 +292,13 @@ function drawTitleScreen(ctx: CanvasRenderingContext2D, state: GameState, highSc
     ctx.fillStyle = TEXT_COLOR;
     ctx.font = `20px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText('PRESS ENTER TO START', width / 2, height * 0.9);
+    ctx.fillText('PRESS ENTER TO START', width / 2, height * 0.87);
   }
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.font = `14px ${FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('PRESS H FOR HIGH SCORES', width / 2, height * 0.93);
 }
 
 function drawGameOver(ctx: CanvasRenderingContext2D, state: GameState): void {

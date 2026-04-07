@@ -1,5 +1,5 @@
 import {
-  GameState, KeyState, Ship, Asteroid, GamePhase,
+  GameState, KeyState, Ship, Asteroid, GamePhase, GameEvent,
   Vec2, AsteroidSize, SaucerSize,
   SHIP_ROTATION_SPEED, SHIP_THRUST, SHIP_DRAG, SHIP_MAX_SPEED, SHIP_RADIUS,
   SHIP_INVINCIBLE_TIME, SHIP_RESPAWN_TIME,
@@ -124,6 +124,7 @@ export function createGameState(width: number, height: number): GameState {
     saucerSpawnTimer: rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max),
     enteredName: '',
     newHighScoreRank: null,
+    events: [],
   };
 
   state.asteroids = spawnAsteroidsForLevel(1, width, height, state.nextId);
@@ -138,6 +139,7 @@ export function createKeyState(): KeyState {
 
 // ---- Shoot cooldown (stored outside state for simplicity) ----
 let shootCooldown = 0;
+let wasThrusting = false;
 
 // ---- Game Update ----
 
@@ -164,6 +166,9 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
     if (keys.right) ship.angle += SHIP_ROTATION_SPEED * dt;
 
     ship.thrusting = keys.up;
+    if (keys.up && !wasThrusting) state.events.push(GameEvent.ThrustStart);
+    if (!keys.up && wasThrusting) state.events.push(GameEvent.ThrustStop);
+    wasThrusting = keys.up;
     if (keys.up) {
       ship.vel.x += Math.sin(ship.angle) * SHIP_THRUST * dt;
       ship.vel.y -= Math.cos(ship.angle) * SHIP_THRUST * dt;
@@ -197,12 +202,14 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
       ship.pos.x = rand(0, width);
       ship.pos.y = rand(0, height);
       ship.invincibleTimer = 0.5;
+      state.events.push(GameEvent.Hyperspace);
     }
 
     // Shooting
     shootCooldown -= dt;
     if (keys.shoot && shootCooldown <= 0 && state.bullets.length < MAX_BULLETS) {
       shootCooldown = SHOOT_COOLDOWN;
+      state.events.push(GameEvent.Shoot);
       const bulletVel: Vec2 = {
         x: Math.sin(ship.angle) * BULLET_SPEED + ship.vel.x * 0.3,
         y: -Math.cos(ship.angle) * BULLET_SPEED + ship.vel.y * 0.3,
@@ -274,6 +281,7 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
   // ---- Extra life ----
   if (state.score >= state.extraLifeThreshold) {
     state.lives++;
+    state.events.push(GameEvent.ExtraLife);
     state.extraLifeThreshold += EXTRA_LIFE_SCORE;
   }
 }
@@ -300,6 +308,7 @@ function updateSaucer(state: GameState, dt: number): void {
           alive: true,
           id: state.nextId++,
         };
+        state.events.push(GameEvent.SaucerSpawn);
       }
     }
     return;
@@ -340,6 +349,7 @@ function updateSaucer(state: GameState, dt: number): void {
       // Random direction
       angle = rand(0, Math.PI * 2);
     }
+    state.events.push(GameEvent.SaucerShoot);
     state.saucerBullets.push({
       pos: { ...saucer.pos },
       vel: { x: Math.sin(angle) * SAUCER_BULLET_SPEED, y: -Math.cos(angle) * SAUCER_BULLET_SPEED },
@@ -368,6 +378,9 @@ function addScore(state: GameState, points: number): void {
 
 function destroyShip(state: GameState): void {
   state.ship.alive = false;
+  state.events.push(GameEvent.ExplodeShip);
+  state.events.push(GameEvent.ThrustStop);
+  wasThrusting = false;
   spawnExplosion(state, state.ship.pos, PARTICLE_COUNT_SHIP, 120);
   state.lives--;
   if (state.lives <= 0) {
@@ -380,6 +393,12 @@ function destroyShip(state: GameState): void {
 
 function splitAsteroid(state: GameState, asteroid: Asteroid): void {
   spawnExplosion(state, asteroid.pos, PARTICLE_COUNT_ASTEROID, 60);
+  const sizeEvents = {
+    [AsteroidSize.Large]: GameEvent.ExplodeLarge,
+    [AsteroidSize.Medium]: GameEvent.ExplodeMedium,
+    [AsteroidSize.Small]: GameEvent.ExplodeSmall,
+  };
+  state.events.push(sizeEvents[asteroid.size]);
   if (asteroid.size === AsteroidSize.Large) {
     const speedMult = 1 + (state.level - 1) * 0.1;
     for (let i = 0; i < 2; i++) {
@@ -419,6 +438,7 @@ function checkCollisions(state: GameState): void {
       if (distWrapped(bullet.pos, state.saucer.pos, width, height) < state.saucer.radius) {
         bulletsToRemove.add(bullet.id);
         addScore(state, SAUCER_SCORES[state.saucer.size]);
+        state.events.push(GameEvent.SaucerDestroyed);
         spawnExplosion(state, state.saucer.pos, 15, 100);
         state.saucer = null;
         state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
@@ -444,6 +464,7 @@ function checkCollisions(state: GameState): void {
   if (ship.alive && ship.invincibleTimer <= 0 && state.saucer) {
     if (distWrapped(ship.pos, state.saucer.pos, width, height) < ship.radius + state.saucer.radius) {
       addScore(state, SAUCER_SCORES[state.saucer.size]);
+      state.events.push(GameEvent.SaucerDestroyed);
       spawnExplosion(state, state.saucer.pos, 15, 100);
       state.saucer = null;
       state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
@@ -482,6 +503,7 @@ export function resetGame(state: GameState): void {
   state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
   state.enteredName = '';
   state.newHighScoreRank = null;
+  state.events = [];
   shootCooldown = 0;
 
   state.asteroids = spawnAsteroidsForLevel(1, state.width, state.height, state.nextId);
