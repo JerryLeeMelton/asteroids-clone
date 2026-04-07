@@ -4,7 +4,7 @@ export interface HighScore {
   date: string;
 }
 
-const STORAGE_KEY = 'asteroids-high-scores';
+const STORAGE_KEY = 'reacteroids-high-scores';
 const MAX_SCORES = 10;
 
 // --- localStorage backend (always available) ---

@@ -41,6 +41,9 @@ export function render(
       if (state.saucer) drawSaucer(ctx, state.saucer);
       if (state.ship.alive) drawShip(ctx, state.ship);
       drawHUD(ctx, state);
+      if (state.waveAnnouncementTimer > 0) {
+        drawWaveAnnouncement(ctx, state);
+      }
       break;
 
     case GamePhase.GameOver:
@@ -406,4 +409,64 @@ function drawHighScoresScreen(ctx: CanvasRenderingContext2D, state: GameState, h
     ctx.textAlign = 'center';
     ctx.fillText('PRESS ENTER TO PLAY AGAIN', width / 2, height * 0.9);
   }
+}
+
+function drawWaveAnnouncement(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const { width, height, waveAnnouncementTimer, waveAnnouncementDuration } = state;
+  if (waveAnnouncementTimer <= 0 || waveAnnouncementDuration <= 0) return;
+
+  const elapsed = waveAnnouncementDuration - waveAnnouncementTimer;
+  const duration = waveAnnouncementDuration;
+
+  // Animation phases:
+  //   0.0 - 0.4s: scale up from 0.3→1.0 and fade in
+  //   0.4s - (duration-0.8s): hold steady
+  //   last 0.8s: fade out and drift upward
+  const enterTime = 0.4;
+  const exitTime = 0.8;
+  const holdEnd = duration - exitTime;
+
+  let alpha: number;
+  let scale: number;
+  let yOffset: number;
+
+  if (elapsed < enterTime) {
+    // Ease-out entrance: fast start, smooth stop
+    const t = elapsed / enterTime;
+    const ease = 1 - (1 - t) * (1 - t); // quadratic ease-out
+    alpha = ease;
+    scale = 0.3 + 0.7 * ease;
+    yOffset = 0;
+  } else if (elapsed < holdEnd) {
+    // Hold steady
+    alpha = 1;
+    scale = 1;
+    yOffset = 0;
+  } else {
+    // Fade out and drift up
+    const t = (elapsed - holdEnd) / exitTime;
+    const ease = t * t; // quadratic ease-in
+    alpha = 1 - ease;
+    scale = 1;
+    yOffset = -30 * ease;
+  }
+
+  if (alpha <= 0) return;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(width / 2, height / 2 + yOffset);
+  ctx.scale(scale, scale);
+
+  // Draw outlined text (stroke only, no fill) for a clean vector look
+  const text = `WAVE ${state.level}`;
+  ctx.font = `bold 56px ${FONT_FAMILY}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = TEXT_COLOR;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.strokeText(text, 0, 0);
+
+  ctx.restore();
 }

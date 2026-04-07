@@ -9,6 +9,7 @@ import {
   SAUCER_SPAWN_INTERVAL, SAUCER_BULLET_SPEED, SAUCER_BULLET_LIFE,
   EXTRA_LIFE_SCORE, INITIAL_LIVES, INITIAL_ASTEROIDS, LEVEL_CLEAR_DELAY,
   PARTICLE_COUNT_SHIP, PARTICLE_COUNT_ASTEROID, PARTICLE_LIFE,
+  WAVE_ANNOUNCEMENT_DURATION,
 } from './types';
 
 // ---- Utility ----
@@ -122,6 +123,8 @@ export function createGameState(width: number, height: number): GameState {
     extraLifeThreshold: EXTRA_LIFE_SCORE,
     levelClearTimer: 0,
     saucerSpawnTimer: rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max),
+    waveAnnouncementTimer: 0,
+    waveAnnouncementDuration: 0,
     enteredName: '',
     newHighScoreRank: null,
     events: [],
@@ -196,12 +199,13 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
       ship.invincibleTimer -= dt;
     }
 
-    // Hyperspace
+    // Hyperspace — risky! No invincibility on arrival.
+    // Player can materialize inside an asteroid and die.
     if (keys.hyperspace) {
       keys.hyperspace = false;
       ship.pos.x = rand(0, width);
       ship.pos.y = rand(0, height);
-      ship.invincibleTimer = 0.5;
+      ship.invincibleTimer = 0;
       state.events.push(GameEvent.Hyperspace);
     }
 
@@ -263,6 +267,12 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
   }
   state.particles = state.particles.filter(p => p.life > 0);
 
+  // ---- Wave announcement countdown ----
+  if (state.waveAnnouncementTimer > 0) {
+    state.waveAnnouncementTimer -= dt;
+    if (state.waveAnnouncementTimer < 0) state.waveAnnouncementTimer = 0;
+  }
+
   // ---- Collisions ----
   checkCollisions(state);
 
@@ -275,6 +285,8 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
       state.nextId += state.asteroids.length;
       state.levelClearTimer = LEVEL_CLEAR_DELAY;
       state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
+      state.waveAnnouncementTimer = WAVE_ANNOUNCEMENT_DURATION;
+      state.waveAnnouncementDuration = WAVE_ANNOUNCEMENT_DURATION;
     }
   }
 
@@ -504,7 +516,10 @@ export function resetGame(state: GameState): void {
   state.enteredName = '';
   state.newHighScoreRank = null;
   state.events = [];
+  state.waveAnnouncementTimer = WAVE_ANNOUNCEMENT_DURATION;
+  state.waveAnnouncementDuration = WAVE_ANNOUNCEMENT_DURATION;
   shootCooldown = 0;
+  wasThrusting = false;
 
   state.asteroids = spawnAsteroidsForLevel(1, state.width, state.height, state.nextId);
   state.nextId += state.asteroids.length;
