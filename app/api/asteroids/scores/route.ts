@@ -47,14 +47,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate score is a reasonable positive integer
-    if (!Number.isInteger(score) || score < 0 || score > 9999999) {
+    if (!Number.isInteger(score) || score <= 0 || score > 9999999) {
       return NextResponse.json({ error: 'Invalid score' }, { status: 400 });
     }
 
     const scores = await readScores();
 
     const newEntry: HighScore = {
-      name: sanitizedName.toUpperCase(),
+      name: sanitizedName,
       score,
       date: new Date().toISOString(),
     };

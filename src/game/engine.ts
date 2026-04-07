@@ -19,10 +19,8 @@ function rand(min: number, max: number): number {
 }
 
 function wrap(pos: Vec2, width: number, height: number): void {
-  if (pos.x < 0) pos.x += width;
-  if (pos.x > width) pos.x -= width;
-  if (pos.y < 0) pos.y += height;
-  if (pos.y > height) pos.y -= height;
+  pos.x = ((pos.x % width) + width) % width;
+  pos.y = ((pos.y % height) + height) % height;
 }
 
 function distWrapped(a: Vec2, b: Vec2, w: number, h: number): number {
@@ -82,12 +80,11 @@ function createAsteroid(
 }
 
 function spawnAsteroidsForLevel(level: number, width: number, height: number, startId: number): Asteroid[] {
-  const count = INITIAL_ASTEROIDS + (level - 1);
+  const count = Math.min(INITIAL_ASTEROIDS + (level - 1), 12);
   const asteroids: Asteroid[] = [];
   const speedMultiplier = 1 + (level - 1) * 0.1;
 
   for (let i = 0; i < count; i++) {
-    // Spawn along edges, away from center
     let pos: Vec2;
     const edge = Math.floor(rand(0, 4));
     switch (edge) {
@@ -121,8 +118,10 @@ export function createGameState(width: number, height: number): GameState {
     height,
     nextId: 1,
     extraLifeThreshold: EXTRA_LIFE_SCORE,
-    levelClearTimer: 0,
+    levelClearTimer: LEVEL_CLEAR_DELAY,
     saucerSpawnTimer: rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max),
+    shootCooldown: 0,
+    wasThrusting: false,
     waveAnnouncementTimer: 0,
     waveAnnouncementDuration: 0,
     enteredName: '',
@@ -139,10 +138,6 @@ export function createGameState(width: number, height: number): GameState {
 export function createKeyState(): KeyState {
   return { left: false, right: false, up: false, shoot: false, hyperspace: false };
 }
-
-// ---- Shoot cooldown (stored outside state for simplicity) ----
-let shootCooldown = 0;
-let wasThrusting = false;
 
 // ---- Game Update ----
 
@@ -169,9 +164,9 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
     if (keys.right) ship.angle += SHIP_ROTATION_SPEED * dt;
 
     ship.thrusting = keys.up;
-    if (keys.up && !wasThrusting) state.events.push(GameEvent.ThrustStart);
-    if (!keys.up && wasThrusting) state.events.push(GameEvent.ThrustStop);
-    wasThrusting = keys.up;
+    if (keys.up && !state.wasThrusting) state.events.push(GameEvent.ThrustStart);
+    if (!keys.up && state.wasThrusting) state.events.push(GameEvent.ThrustStop);
+    state.wasThrusting = keys.up;
     if (keys.up) {
       ship.vel.x += Math.sin(ship.angle) * SHIP_THRUST * dt;
       ship.vel.y -= Math.cos(ship.angle) * SHIP_THRUST * dt;
@@ -210,9 +205,9 @@ export function updateGame(state: GameState, keys: KeyState, dt: number): void {
     }
 
     // Shooting
-    shootCooldown -= dt;
-    if (keys.shoot && shootCooldown <= 0 && state.bullets.length < MAX_BULLETS) {
-      shootCooldown = SHOOT_COOLDOWN;
+    state.shootCooldown -= dt;
+    if (keys.shoot && state.shootCooldown <= 0 && state.bullets.length < MAX_BULLETS) {
+      state.shootCooldown = SHOOT_COOLDOWN;
       state.events.push(GameEvent.Shoot);
       const bulletVel: Vec2 = {
         x: Math.sin(ship.angle) * BULLET_SPEED + ship.vel.x * 0.3,
@@ -305,7 +300,6 @@ function updateSaucer(state: GameState, dt: number): void {
     if (state.asteroids.length > 0) {
       state.saucerSpawnTimer -= dt;
       if (state.saucerSpawnTimer <= 0) {
-        // Higher scores → more small saucers
         const isSmall = state.score > 10000 ? Math.random() < 0.7 :
                         state.score > 5000 ? Math.random() < 0.4 :
                         Math.random() < 0.15;
@@ -328,37 +322,30 @@ function updateSaucer(state: GameState, dt: number): void {
 
   const saucer = state.saucer;
 
-  // Move with occasional vertical direction changes
   saucer.pos.x += saucer.vel.x * dt;
   saucer.pos.y += saucer.vel.y * dt;
 
-  // Random vertical movement changes
   if (Math.random() < dt * 0.5) {
     saucer.vel.y = rand(-80, 80);
   }
 
-  // Keep within vertical bounds
   if (saucer.pos.y < 30) { saucer.pos.y = 30; saucer.vel.y = Math.abs(saucer.vel.y); }
   if (saucer.pos.y > height - 30) { saucer.pos.y = height - 30; saucer.vel.y = -Math.abs(saucer.vel.y); }
 
-  // Remove if off screen horizontally
   if (saucer.pos.x < -50 || saucer.pos.x > width + 50) {
     state.saucer = null;
     state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
     return;
   }
 
-  // Shooting
   saucer.shootTimer -= dt;
   if (saucer.shootTimer <= 0 && ship.alive) {
     saucer.shootTimer = rand(SAUCER_SHOOT_INTERVAL.min, SAUCER_SHOOT_INTERVAL.max);
     let angle: number;
     if (saucer.size === SaucerSize.Small) {
-      // Aimed at player with some inaccuracy
       angle = Math.atan2(ship.pos.x - saucer.pos.x, -(ship.pos.y - saucer.pos.y));
       angle += rand(-0.2, 0.2);
     } else {
-      // Random direction
       angle = rand(0, Math.PI * 2);
     }
     state.events.push(GameEvent.SaucerShoot);
@@ -375,11 +362,12 @@ function spawnExplosion(state: GameState, pos: Vec2, count: number, speed: numbe
   for (let i = 0; i < count; i++) {
     const angle = rand(0, Math.PI * 2);
     const spd = rand(speed * 0.3, speed);
+    const initialLife = rand(PARTICLE_LIFE * 0.5, PARTICLE_LIFE);
     state.particles.push({
       pos: { ...pos },
       vel: { x: Math.cos(angle) * spd, y: Math.sin(angle) * spd },
-      life: rand(PARTICLE_LIFE * 0.5, PARTICLE_LIFE),
-      maxLife: PARTICLE_LIFE,
+      life: initialLife,
+      maxLife: initialLife,
     });
   }
 }
@@ -392,7 +380,7 @@ function destroyShip(state: GameState): void {
   state.ship.alive = false;
   state.events.push(GameEvent.ExplodeShip);
   state.events.push(GameEvent.ThrustStop);
-  wasThrusting = false;
+  state.wasThrusting = false;
   spawnExplosion(state, state.ship.pos, PARTICLE_COUNT_SHIP, 120);
   state.lives--;
   if (state.lives <= 0) {
@@ -403,7 +391,7 @@ function destroyShip(state: GameState): void {
   }
 }
 
-function splitAsteroid(state: GameState, asteroid: Asteroid): void {
+function splitAsteroid(newAsteroids: Asteroid[], state: GameState, asteroid: Asteroid): void {
   spawnExplosion(state, asteroid.pos, PARTICLE_COUNT_ASTEROID, 60);
   const sizeEvents = {
     [AsteroidSize.Large]: GameEvent.ExplodeLarge,
@@ -414,12 +402,12 @@ function splitAsteroid(state: GameState, asteroid: Asteroid): void {
   if (asteroid.size === AsteroidSize.Large) {
     const speedMult = 1 + (state.level - 1) * 0.1;
     for (let i = 0; i < 2; i++) {
-      state.asteroids.push(createAsteroid(asteroid.pos, AsteroidSize.Medium, state.nextId++, speedMult * 1.2));
+      newAsteroids.push(createAsteroid(asteroid.pos, AsteroidSize.Medium, state.nextId++, speedMult * 1.2));
     }
   } else if (asteroid.size === AsteroidSize.Medium) {
     const speedMult = 1 + (state.level - 1) * 0.1;
     for (let i = 0; i < 2; i++) {
-      state.asteroids.push(createAsteroid(asteroid.pos, AsteroidSize.Small, state.nextId++, speedMult * 1.4));
+      newAsteroids.push(createAsteroid(asteroid.pos, AsteroidSize.Small, state.nextId++, speedMult * 1.4));
     }
   }
 }
@@ -427,17 +415,21 @@ function splitAsteroid(state: GameState, asteroid: Asteroid): void {
 function checkCollisions(state: GameState): void {
   const { ship, width, height } = state;
 
-  // Bullet vs Asteroid
+  // Bullet vs Asteroid — collect new asteroids separately to avoid
+  // mutating the array during iteration
   const bulletsToRemove = new Set<number>();
   const asteroidsToRemove = new Set<number>();
+  const newAsteroids: Asteroid[] = [];
 
   for (const bullet of state.bullets) {
+    if (bulletsToRemove.has(bullet.id)) continue;
     for (const asteroid of state.asteroids) {
+      if (asteroidsToRemove.has(asteroid.id)) continue;
       if (distWrapped(bullet.pos, asteroid.pos, width, height) < asteroid.radius) {
         bulletsToRemove.add(bullet.id);
         asteroidsToRemove.add(asteroid.id);
         addScore(state, ASTEROID_SCORES[asteroid.size]);
-        splitAsteroid(state, asteroid);
+        splitAsteroid(newAsteroids, state, asteroid);
         break;
       }
     }
@@ -461,13 +453,17 @@ function checkCollisions(state: GameState): void {
 
   state.bullets = state.bullets.filter(b => !bulletsToRemove.has(b.id));
   state.asteroids = state.asteroids.filter(a => !asteroidsToRemove.has(a.id));
+  // Merge in child asteroids from splits
+  if (newAsteroids.length > 0) {
+    state.asteroids.push(...newAsteroids);
+  }
 
   // Ship vs Asteroid
   if (ship.alive && ship.invincibleTimer <= 0) {
     for (const asteroid of state.asteroids) {
       if (distWrapped(ship.pos, asteroid.pos, width, height) < ship.radius + asteroid.radius * 0.8) {
         destroyShip(state);
-        break;
+        return;
       }
     }
   }
@@ -481,17 +477,22 @@ function checkCollisions(state: GameState): void {
       state.saucer = null;
       state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
       destroyShip(state);
+      return;
     }
   }
 
   // Ship vs Saucer bullets
   if (ship.alive && ship.invincibleTimer <= 0) {
+    const saucerBulletsToRemove = new Set<number>();
     for (const bullet of state.saucerBullets) {
       if (distWrapped(ship.pos, bullet.pos, width, height) < ship.radius) {
+        saucerBulletsToRemove.add(bullet.id);
         destroyShip(state);
-        state.saucerBullets = state.saucerBullets.filter(b => b.id !== bullet.id);
         break;
       }
+    }
+    if (saucerBulletsToRemove.size > 0) {
+      state.saucerBullets = state.saucerBullets.filter(b => !saucerBulletsToRemove.has(b.id));
     }
   }
 }
@@ -513,13 +514,13 @@ export function resetGame(state: GameState): void {
   state.extraLifeThreshold = EXTRA_LIFE_SCORE;
   state.levelClearTimer = LEVEL_CLEAR_DELAY;
   state.saucerSpawnTimer = rand(SAUCER_SPAWN_INTERVAL.min, SAUCER_SPAWN_INTERVAL.max);
+  state.shootCooldown = 0;
+  state.wasThrusting = false;
   state.enteredName = '';
   state.newHighScoreRank = null;
   state.events = [];
   state.waveAnnouncementTimer = WAVE_ANNOUNCEMENT_DURATION;
   state.waveAnnouncementDuration = WAVE_ANNOUNCEMENT_DURATION;
-  shootCooldown = 0;
-  wasThrusting = false;
 
   state.asteroids = spawnAsteroidsForLevel(1, state.width, state.height, state.nextId);
   state.nextId += state.asteroids.length;

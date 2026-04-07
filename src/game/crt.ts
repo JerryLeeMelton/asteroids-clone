@@ -87,6 +87,18 @@ export class CRTFilter {
     return this.gameCtx;
   }
 
+  /** Release offscreen canvases to free memory */
+  dispose(): void {
+    this.gameCanvas.width = 0;
+    this.gameCanvas.height = 0;
+    this.bloomCanvasA.width = 0;
+    this.bloomCanvasA.height = 0;
+    this.bloomCanvasB.width = 0;
+    this.bloomCanvasB.height = 0;
+    this.grillePattern = null;
+    this.scanlinePattern = null;
+  }
+
   /** Composites the CRT effect onto the output canvas */
   apply(outputCtx: CanvasRenderingContext2D): void {
     const { width, height } = this;
@@ -97,7 +109,7 @@ export class CRTFilter {
     // --- Pass 2: Brightness boost ---
     if (this.opts.brightnessBoost > 1) {
       outputCtx.save();
-      outputCtx.globalCompositeOperation = 'source-atop';
+      outputCtx.globalCompositeOperation = 'lighter';
       const boostAlpha = Math.min(this.opts.brightnessBoost - 1, 0.5);
       outputCtx.fillStyle = `rgba(255, 255, 255, ${boostAlpha})`;
       outputCtx.fillRect(0, 0, width, height);
@@ -213,14 +225,7 @@ export class CRTFilter {
 
     ctx.putImageData(img, 0, 0);
 
-    const c2 = document.createElement('canvas');
-    c2.width = pw;
-    c2.height = ph;
-    const ctx2 = c2.getContext('2d')!;
-    ctx2.imageSmoothingEnabled = false;
-    ctx2.drawImage(pat, 0, 0);
-
-    this.grillePattern = ctx2.createPattern(c2, 'repeat');
+    this.grillePattern = ctx.createPattern(pat, 'repeat');
   }
 
   /**
@@ -260,7 +265,7 @@ export class CRTFilter {
 
     ctx.save();
 
-    const count = Math.floor(200 * intensity * 10);
+    const count = Math.floor(2000 * intensity);
     for (let i = 0; i < count; i++) {
       const x = Math.floor(Math.random() * width);
       const y = Math.floor(Math.random() * height);

@@ -37,7 +37,7 @@ export function render(
 
     case GamePhase.Playing:
       drawBullets(ctx, state.bullets);
-      drawSaucerBullets(ctx, state);
+      drawBullets(ctx, state.saucerBullets);
       if (state.saucer) drawSaucer(ctx, state.saucer);
       if (state.ship.alive) drawShip(ctx, state.ship);
       drawHUD(ctx, state);
@@ -48,7 +48,7 @@ export function render(
 
     case GamePhase.GameOver:
       drawBullets(ctx, state.bullets);
-      drawSaucerBullets(ctx, state);
+      drawBullets(ctx, state.saucerBullets);
       if (state.saucer) drawSaucer(ctx, state.saucer);
       drawHUD(ctx, state);
       drawGameOver(ctx, state);
@@ -134,14 +134,6 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: { pos: { x: number;
   }
 }
 
-function drawSaucerBullets(ctx: CanvasRenderingContext2D, state: GameState): void {
-  ctx.fillStyle = BULLET_COLOR;
-  for (const bullet of state.saucerBullets) {
-    ctx.beginPath();
-    ctx.arc(bullet.pos.x, bullet.pos.y, 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
 
 function drawSaucer(ctx: CanvasRenderingContext2D, saucer: Saucer): void {
   const { pos, radius } = saucer;
@@ -182,11 +174,13 @@ function drawSaucer(ctx: CanvasRenderingContext2D, saucer: Saucer): void {
 }
 
 function drawParticles(ctx: CanvasRenderingContext2D, particles: { pos: { x: number; y: number }; life: number; maxLife: number }[]): void {
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
   for (const p of particles) {
-    const alpha = p.life / p.maxLife;
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.globalAlpha = p.life / p.maxLife;
     ctx.fillRect(p.pos.x - 1, p.pos.y - 1, 2, 2);
   }
+  ctx.restore();
 }
 
 function drawHUD(ctx: CanvasRenderingContext2D, state: GameState): void {

@@ -166,6 +166,19 @@ export class AudioManager {
     }
   }
 
+  /** Clean up all audio resources. Call on unmount. */
+  destroy(): void {
+    this.stopAllLoops();
+    for (const pool of this.pools.values()) {
+      for (const audio of pool.instances) {
+        audio.pause();
+        audio.src = '';
+      }
+    }
+    this.pools.clear();
+    this.loaded = false;
+  }
+
   isEnabled(): boolean {
     return this.enabled;
   }

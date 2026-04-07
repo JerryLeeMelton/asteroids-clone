@@ -46,6 +46,10 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
   const gameOverTimerRef = useRef<number>(0);
   const crtFilterRef = useRef<CRTFilter | null>(null);
   const audioRef = useRef<AudioManager | null>(null);
+  const crtOptionsRef = useRef(crtOptions);
+  const audioOptionsRef = useRef(audioOptions);
+  crtOptionsRef.current = crtOptions;
+  audioOptionsRef.current = audioOptions;
 
   const loadHighScores = useCallback(async () => {
     const scores = await fetchHighScores(scoresApiUrl);
@@ -59,6 +63,8 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     const score = state.score;
     submitHighScore(name, score, scoresApiUrl).then((result) => {
       submittingRef.current = false;
+      // Guard: only update if this game state is still current
+      if (gameStateRef.current !== state) return;
       highScoresRef.current = result.scores;
       state.newHighScoreRank = result.rank;
       state.phase = GamePhase.HighScores;
@@ -143,8 +149,10 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
     if (!canvas) return;
 
     gameStateRef.current = createGameState(width, height);
-    crtFilterRef.current = crtEnabled ? new CRTFilter(width, height, crtOptions) : null;
-    audioRef.current = audioEnabled ? new AudioManager(audioOptions) : null;
+    const crt = crtEnabled ? new CRTFilter(width, height, crtOptionsRef.current) : null;
+    const audio = audioEnabled ? new AudioManager(audioOptionsRef.current) : null;
+    crtFilterRef.current = crt;
+    audioRef.current = audio;
     loadHighScores();
 
     lastTimeRef.current = performance.now();
@@ -152,8 +160,12 @@ const AsteroidsGame: React.FC<AsteroidsGameProps> = ({
 
     return () => {
       cancelAnimationFrame(rafRef.current);
+      crt?.dispose();
+      audio?.destroy();
+      crtFilterRef.current = null;
+      audioRef.current = null;
     };
-  }, [width, height, gameLoop, loadHighScores, crtEnabled, crtOptions, audioEnabled, audioOptions]);
+  }, [width, height, gameLoop, loadHighScores, crtEnabled, audioEnabled]);
 
   // Keyboard handlers
   useEffect(() => {

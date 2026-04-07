@@ -13,7 +13,15 @@ function readLocalScores(): HighScore[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (!data) return [];
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (s: unknown): s is HighScore =>
+        typeof s === 'object' && s !== null &&
+        typeof (s as HighScore).name === 'string' &&
+        typeof (s as HighScore).score === 'number' &&
+        typeof (s as HighScore).date === 'string'
+    );
   } catch {
     return [];
   }
@@ -106,7 +114,7 @@ export async function submitHighScore(
 }
 
 export function isHighScore(scores: HighScore[], score: number): boolean {
-  if (score <= 0) return false;
+  if (score <= 0 || !Number.isFinite(score)) return false;
   if (scores.length < MAX_SCORES) return true;
-  return score > scores[scores.length - 1].score;
+  return score >= scores[scores.length - 1].score;
 }

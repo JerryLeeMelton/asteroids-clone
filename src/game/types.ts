@@ -109,6 +109,9 @@ export interface GameState {
   extraLifeThreshold: number;
   levelClearTimer: number;
   saucerSpawnTimer: number;
+  // Internal state (moved from module-level to avoid cross-instance leaks)
+  shootCooldown: number;
+  wasThrusting: boolean;
   // Wave announcement
   waveAnnouncementTimer: number; // seconds remaining, 0 = hidden
   waveAnnouncementDuration: number; // total duration for animation calc
