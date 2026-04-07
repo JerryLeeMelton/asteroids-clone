@@ -9,7 +9,7 @@ interface HighScore {
 }
 
 const MAX_SCORES = 10;
-const SCORES_FILE = path.join(process.cwd(), 'data', 'asteroids-scores.json');
+const SCORES_FILE = path.join(process.cwd(), 'data', 'reacteroids-scores.json');
 
 async function readScores(): Promise<HighScore[]> {
   try {

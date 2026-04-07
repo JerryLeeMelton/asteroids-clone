@@ -109,6 +109,9 @@ export interface GameState {
   extraLifeThreshold: number;
   levelClearTimer: number;
   saucerSpawnTimer: number;
+  // Wave announcement
+  waveAnnouncementTimer: number; // seconds remaining, 0 = hidden
+  waveAnnouncementDuration: number; // total duration for animation calc
   // High score entry
   enteredName: string;
   newHighScoreRank: number | null;
@@ -172,3 +175,4 @@ export const LEVEL_CLEAR_DELAY = 2.0; // seconds before next wave
 export const PARTICLE_COUNT_SHIP = 30;
 export const PARTICLE_COUNT_ASTEROID = 6;
 export const PARTICLE_LIFE = 1.0;
+export const WAVE_ANNOUNCEMENT_DURATION = 3.0; // seconds to show "Wave X"

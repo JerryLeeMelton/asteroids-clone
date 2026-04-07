@@ -1,5 +1,5 @@
 /**
- * Sound effects manager for the Asteroids game.
+ * Sound effects manager for the Reacteroids game.
  *
  * Drop your sound files into the public/sounds/ directory with the filenames
  * listed in SoundEffect below, then enable audio via the component prop.
