@@ -1,70 +1,124 @@
-# Getting Started with Create React App
+# Reacteroids
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A faithful clone of the 1979 Atari arcade classic **Asteroids**, built in TypeScript and React. Rendered with the HTML5 Canvas 2D API — no game engine, no physics library, no sprite sheets. Every line, particle, and explosion is drawn by hand.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- **Vector-style rendering** — wireframe ship, jagged asteroids, and thrust flame drawn procedurally each frame
+- **Full arcade feature set** — rotation, thrust with inertia, screen wrap, hyperspace, 4-bullet limit, and progressive waves
+- **Flying saucers** — large and small UFOs that hunt the player and fire back
+- **CRT post-processing shader** — scanlines, RGB grille, barrel distortion, vignette, phosphor glow, and signal noise (pure Canvas 2D, no WebGL)
+- **Classic 3-letter high score entry** with a local leaderboard (localStorage) or optional server-backed global leaderboard
+- **Sound effects** — thrust loop, shooting, explosions, saucer alerts, extra life (optional, toggle with `audioEnabled`)
+- **Wave announcements**, extra life at 10,000 points, and period-accurate scoring
+- **Zero runtime dependencies** beyond React — the game code is pure TypeScript
 
-### `yarn start`
+## Architecture
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+The codebase cleanly separates concerns so the game logic is fully portable:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```
+src/
+├── components/
+│   └── AsteroidsGame.tsx    React component — owns the canvas, RAF loop, and input
+└── game/
+    ├── types.ts              Entity types, enums, and tunable constants
+    ├── engine.ts             Pure update logic (no DOM, no React)
+    ├── renderer.ts           Canvas 2D draw routines
+    ├── crt.ts                Post-processing CRT filter
+    ├── audio.ts              Sound effect manager with per-effect pools
+    └── scores.ts             High score persistence (localStorage + optional API)
+```
 
-### `yarn test`
+The engine is a pure function: `updateGame(state, keys, dt)` mutates a plain `GameState` object. You could swap out React for Vue, Svelte, or a `<canvas>` in a plain HTML page without touching a single line of game logic.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Usage
 
-### `yarn build`
+### As a standalone app
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+yarn install
+yarn start
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Open [http://localhost:3000](http://localhost:3000).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### As a React component
 
-### `yarn eject`
+```tsx
+import AsteroidsGame from './components/AsteroidsGame';
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+<AsteroidsGame
+  width={800}
+  height={600}
+  crtEnabled={true}
+  audioEnabled={true}
+  scoresApiUrl="/api/asteroids/scores"  // optional — falls back to localStorage
+/>
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+#### Props
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `width` | `number` | `800` | Canvas width in pixels |
+| `height` | `number` | `600` | Canvas height in pixels |
+| `crtEnabled` | `boolean` | `true` | Toggle CRT post-processing filter |
+| `crtOptions` | `Partial<CRTOptions>` | — | Fine-tune scanlines, curvature, glow, etc. |
+| `audioEnabled` | `boolean` | `false` | Enable sound effects |
+| `audioOptions` | `Partial<AudioOptions>` | — | Audio base path, extension, volume |
+| `scoresApiUrl` | `string` | — | Optional leaderboard API endpoint |
+| `className` | `string` | — | CSS class for the container |
+| `style` | `CSSProperties` | — | Inline styles for the container |
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Next.js integration
 
-## Learn More
+The component uses browser-only APIs (`window`, `requestAnimationFrame`, `<canvas>`), so it must be loaded client-side only:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```tsx
+import dynamic from 'next/dynamic';
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+const AsteroidsGame = dynamic(
+  () => import('@/components/AsteroidsGame'),
+  { ssr: false }
+);
+```
 
-### Code Splitting
+An App Router API route for a server-backed leaderboard is included at `app/api/asteroids/scores/route.ts`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Controls
 
-### Analyzing the Bundle Size
+| Key | Action |
+|-----|--------|
+| Left / Right Arrow | Rotate ship |
+| Up Arrow | Thrust |
+| Space | Fire |
+| Shift | Hyperspace (risky — you may reappear inside a rock) |
+| Enter | Start game / advance screens |
+| H | View high scores from the title screen |
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Click the game to focus it before playing.
 
-### Making a Progressive Web App
+## Scoring
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+| Target | Points |
+|--------|--------|
+| Large asteroid | 20 |
+| Medium asteroid | 50 |
+| Small asteroid | 100 |
+| Large saucer | 200 |
+| Small saucer | 1000 |
 
-### Advanced Configuration
+Extra life awarded every 10,000 points.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Tech stack
 
-### Deployment
+- **TypeScript** — strict typing throughout
+- **React 18** — component shell and RAF lifecycle
+- **HTML5 Canvas 2D** — all rendering
+- **Create React App** — build tooling
+- **Next.js API Route** — optional server-backed leaderboard
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## License
 
-### `yarn build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+MIT
